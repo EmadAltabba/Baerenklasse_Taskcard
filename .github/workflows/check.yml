@@ -1,0 +1,44 @@
+name: TaskCards Board pruefen
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # alle 30 Minuten (UTC)
+  workflow_dispatch:          # manueller Start ueber den Actions-Tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: board-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Playwright installieren
+        run: |
+          pip install playwright
+          python -m playwright install chromium --with-deps
+
+      - name: Board pruefen
+        env:
+          URLS: ${{ secrets.URLS }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python check_board.py
+
+      - name: Zustand speichern
+        run: |
+          git config user.name "board-watcher"
+          git config user.email "actions@github.com"
+          git add state.json
+          git diff --cached --quiet || git commit -m "Boardstand aktualisiert"
+          git push
